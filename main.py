@@ -2,6 +2,7 @@ import requests
 import random
 import time
 import json
+import os
 from tqdm import tqdm
 from colorama import Fore, init
 from prettytable import PrettyTable
@@ -19,6 +20,19 @@ USER_AGENTS = [
 
 def get_random_ua():
     return random.choice(USER_AGENTS)
+
+def countdown_timer(seconds):
+    try:
+        for remaining in range(seconds, 0, -1):
+            hrs, rem = divmod(remaining, 3600)
+            mins, secs = divmod(rem, 60)
+            timer_display = f"{Fore.YELLOW}⏳ Menunggu {hrs:02}:{mins:02}:{secs:02} untuk siklus berikutnya..."
+            print(timer_display, end="\r")
+            time.sleep(1)
+        print(" " * 60, end="\r")  # Bersihkan baris
+    except KeyboardInterrupt:
+        print(Fore.RED + "\n⏹ Timer dibatalkan oleh pengguna.")
+        exit()
 
 def get_balance(headers):
     try:
@@ -134,50 +148,57 @@ def format_result(result):
     error = result["error"] or "-"
     return [result["token"], claim_status, balance, error]
 
-def main():
+def main_loop():
+    os.system("cls" if os.name == "nt" else "clear")
     print(Fore.CYAN + "\n" + "="*50)
     print(Fore.YELLOW + " HUMANITY CLAIMER ".center(50, "⚡"))
     print(Fore.CYAN + "="*50 + "\n")
     try:
-        try:
-            with open(TOKEN_FILE, "r") as f:
-                tokens = [t.strip() for t in f.readlines() if t.strip()]
-            if not tokens:
-                print(Fore.RED + "❌ Error: Tidak ada token yang ditemukan di file!")
-                return
-            print(Fore.WHITE + f"🔍 Ditemukan {len(tokens)} token\n")
-        except Exception as e:
-            print(Fore.RED + f"❌ Gagal membaca file token: {str(e)}")
+        with open(TOKEN_FILE, "r") as f:
+            tokens = [t.strip() for t in f.readlines() if t.strip()]
+        if not tokens:
+            print(Fore.RED + "❌ Error: Tidak ada token yang ditemukan di file!")
             return
-        results = []
-        with tqdm(total=len(tokens), desc=Fore.BLUE + "Memproses Token", 
-                 bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}") as pbar:
-            for token in tokens:
-                results.append(process_token(token, pbar))
-                time.sleep(0.5)
-        table = PrettyTable()
-        table.field_names = [
-            Fore.CYAN + "Token",
-            Fore.CYAN + "Claim Status",
-            Fore.CYAN + "Balance",
-            Fore.CYAN + "Error"
-        ]
-        table.align = "l"
+        print(Fore.WHITE + f"🔍 Ditemukan {len(tokens)} token\n")
+    except Exception as e:
+        print(Fore.RED + f"❌ Gagal membaca file token: {str(e)}")
+        return
+    results = []
+    with tqdm(total=len(tokens), desc=Fore.BLUE + "Memproses Token", 
+             bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}") as pbar:
+        for token in tokens:
+            results.append(process_token(token, pbar))
+            time.sleep(0.5)
+    table = PrettyTable()
+    table.field_names = [
+        Fore.CYAN + "Token",
+        Fore.CYAN + "Claim Status",
+        Fore.CYAN + "Balance",
+        Fore.CYAN + "Error"
+    ]
+    table.align = "l"
+    for res in results:
+        table.add_row(format_result(res))
+    print(Fore.GREEN + "\n" + "📊 HASIL AKHIR ".center(50, "="))
+    print(table)
+    with open("claim_log.txt", "a") as f:
+        f.write(f"Claim Log - {time.ctime()}\n\n")
         for res in results:
-            table.add_row(format_result(res))
-        print(Fore.GREEN + "\n" + "📊 HASIL AKHIR ".center(50, "="))
-        print(table)
-        with open("claim_log.txt", "w") as f:
-            f.write(f"Claim Log - {time.ctime()}\n\n")
-            for res in results:
-                f.write(f"Token: {res['token']}\n")
-                f.write(f"Claim Status: {res['claim_status']}\n")
-                if res["balance_info"]:
-                    f.write(f"Balance Result: {json.dumps(res['balance_info'], indent=2)}\n")
-                f.write(f"Error: {res['error']}\n")
-                f.write("-"*50 + "\n")
-        print(Fore.YELLOW + "\nLog detail disimpan di: claim_log.txt")
-        print(Fore.MAGENTA + "="*50)
+            f.write(f"Token: {res['token']}\n")
+            f.write(f"Claim Status: {res['claim_status']}\n")
+            if res["balance_info"]:
+                f.write(f"Balance Result: {json.dumps(res['balance_info'], indent=2)}\n")
+            f.write(f"Error: {res['error']}\n")
+            f.write("-"*50 + "\n")
+    print(Fore.YELLOW + "\nLog detail disimpan di: claim_log.txt")
+    print(Fore.MAGENTA + "="*50)
+
+def main():
+    try:
+        while True:
+            main_loop()
+            print(Fore.GREEN + f"\n🔁 Menunggu 6 jam sebelum siklus berikutnya...\n")
+            countdown_timer(6 * 60 * 60)  
     except KeyboardInterrupt:
         print(Fore.RED + "\n⏹ Dihentikan oleh pengguna!")
 
